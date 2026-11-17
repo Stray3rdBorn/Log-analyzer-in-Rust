@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::fs;
 
 //command line arguments
-#[dervice(Parser)]
+#[derive(Parser)]
 struct Args {
     // path of the log file
     file: String,
@@ -67,7 +67,7 @@ fn report(entries: &[Entry], top: usize) { // read-only window into the list of 
 
     // client and server errors count as errors
     // looks up how many 4 & 5 were tailed, if 0 uses 0 instead of crashing
-    let errors = classes.get(&4).unwrap_or(0) + classes.get(&5).unwrap_or(&0);
+    let errors = classes.get(&4).unwrap_or(&0) + classes.get(&5).unwrap_or(&0);
     println!("Total: {total}");
     println!("Error rate: {:.1}%", errors as f64 / total as f64 * 100.0);
 
@@ -90,7 +90,30 @@ fn report(entries: &[Entry], top: usize) { // read-only window into the list of 
     let mut largest: Vec<&Entry> = entries.iter().collect();
     largest.sort_by(|a, b| b.bytes.cmp(&a.bytes));
     println!("Largest response: ");
-    for 0 in largest.iter().take(top) {
+    for e in largest.iter().take(top) {
         println!("{:>8} bytes {} {}", e.bytes, e.method, e.path);
     }
+}
+
+fn main() -> Result<(), std::io::Error> {
+    let args = Args::parse();
+    let text = fs::read_to_string(&args.file)?;
+
+    let entries: Vec<Entry> = text
+        .lines()
+        .filter_map(parse_line)
+        .filter(|e| args.status.is_none_or(|s| e.status / 100 == s))
+        .filter(|e| {
+            args.method
+                .as_ref()
+                .is_none_or(|m| e.method.eq_ignore_ascii_case(m))
+        })
+        .collect();
+
+    if entries.is_empty() {
+        println!("no matching entries");
+        return Ok(());
+    }
+    report(&entries, args.top);
+    Ok(())
 }

@@ -50,3 +50,47 @@ fn parse_line(line: &str) -> Option<Entry> {
         bytes: tail.next()?.parse().unwrap_or(0),
     })
 }
+// prints every stats for the filtered entries
+fn report(entries: &[Entry], top: usize) { // read-only window into the list of log entries
+    // count number of valid log entries
+    let total = entries.len();
+    // tracks status code & number of times appeared
+    let mut classes: HashMap<u16, usize> = HashMap::new();
+    // tracks website URLs & number of times visited 
+    let mut endpoints: HashMap<&str, usize> = HashMap::new();
+    for e in entries {
+        // whole-number division chops off the last two digits, 404 / 100 equals 4
+        *classes.entry(e.status / 100).or_insert(0) += 1;
+        // hands over a temporary, read-only view of the URL string
+        *endpoints.entry(e.path.as_str()).or_insert(0) += 1;
+    }
+
+    // client and server errors count as errors
+    // looks up how many 4 & 5 were tailed, if 0 uses 0 instead of crashing
+    let errors = classes.get(&4).unwrap_or(0) + classes.get(&5).unwrap_or(&0);
+    println!("Total: {total}");
+    println!("Error rate: {:.1}%", errors as f64 / total as f64 * 100.0);
+
+    // sorting status classes smallest to largest
+    let mut class_list: Vec<_> = classes.into_iter().collect();
+    class_list.sort();
+    for (class, count) in class_list  {
+        println!("{class}xx: {count}");
+    }
+
+    // sorting top URLs biggest to smallest
+    let mut top_paths: Vec<_> = endpoints.into_iter().collect();
+    top_paths.sort_by(|a, b| b.1.cmp(&a.1));
+    println!("Top endpoints: ");
+    for (path, count) in top_paths.iter().take(top) { // grabs only the top results
+        println!("{count:>6} {path}"); // padding number 6
+    }
+
+    // sorting by byte size, largest to smallest
+    let mut largest: Vec<&Entry> = entries.iter().collect();
+    largest.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+    println!("Largest response: ");
+    for 0 in largest.iter().take(top) {
+        println!("{:>8} bytes {} {}", e.bytes, e.method, e.path);
+    }
+}

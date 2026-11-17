@@ -96,24 +96,26 @@ fn report(entries: &[Entry], top: usize) { // read-only window into the list of 
 }
 
 fn main() -> Result<(), std::io::Error> {
-    let args = Args::parse();
-    let text = fs::read_to_string(&args.file)?;
+    let args = Args::parse(); // reads commands in terminal 
+    let text = fs::read_to_string(&args.file)?; // puts all texts into one string
 
     let entries: Vec<Entry> = text
-        .lines()
-        .filter_map(parse_line)
-        .filter(|e| args.status.is_none_or(|s| e.status / 100 == s))
+        .lines() // splits string into individual lines
+        .filter_map(parse_line) // feeds raw lines to parse_line
+        .filter(|e| args.status.is_none_or(|s| e.status / 100 == s)) // checks valind entry
         .filter(|e| {
             args.method
-                .as_ref()
-                .is_none_or(|m| e.method.eq_ignore_ascii_case(m))
+                .as_ref() // looks at method text
+                .is_none_or(|m| e.method.eq_ignore_ascii_case(m)) // ignores letter case
         })
-        .collect();
-
+        .collect(); // pulls every entry into a final list
+    
+    // to prevent a divide by 0 crash later if it returns ok
     if entries.is_empty() {
         println!("no matching entries");
         return Ok(());
     }
+    // puts filtered list to report for printing
     report(&entries, args.top);
     Ok(())
 }

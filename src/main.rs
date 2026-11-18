@@ -81,7 +81,6 @@ struct Stats { // holds the counters
     total: usize,
     classes: HashMap<u16, usize>,
     endpoints: HashMap<String, usize>,
-    hours: HashMap<u32, usize>,
     largest: Vec<Entry>,
 }
 
@@ -94,7 +93,6 @@ impl Stats { // attaches functions to the type
         // time hour gives the hour from 0 to 23
         *self.classes.entry(e.status / 100).or_insert(0) += 1;
         *self.endpoints.entry(e.path.clone()).or_insert(0) += 1;
-        *self.hours.entry(e.time.hour()).or_insert(0) += 1;
         // appends the entry to the list
         self.largest.push(e);
         // largest bytes
@@ -123,18 +121,6 @@ fn report(stats: &Stats, skipped: usize, top: usize) {
     for (class, count) in classes {
         // prints the status class (like "2xx") alongside its total count
         println!("{class}xx: {count}");
-    }
-
-    // collects hourly request entries into a vector
-    let mut hours: Vec<_> = stats.hours.iter().collect();
-    // sorts the hours in chronological order (00 to 23)
-    hours.sort();
-    // prints a section header for the hourly breakdown
-    println!("Requests Per Hour:");
-    // loops through each sorted hour and its request count
-    for (hour, count) in hours {
-        // prints the hour padded to two digits (e.g., "09:00") and its request count
-        println!("{hour:02}:00  {count}");
     }
 
     // collects endpoint paths and their request counts into a vector

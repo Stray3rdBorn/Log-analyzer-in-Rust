@@ -104,50 +104,60 @@ impl Stats { // attaches functions to the type
     }
 }
 
-// prints every stats for the filtered entries
-fn report(entries: &[Entry], top: usize) { // read-only window into the list of log entries
-    // count number of valid log entries
-    let total = entries.len();
-    // tracks status code & number of times appeared
-    let mut classes: HashMap<u16, usize> = HashMap::new();
-    // tracks website URLs & number of times visited 
-    let mut endpoints: HashMap<&str, usize> = HashMap::new();
-    for e in entries {
-        // whole-number division chops off the last two digits, 404 / 100 equals 4
-        *classes.entry(e.status / 100).or_insert(0) += 1;
-        // hands over a temporary, read-only view of the URL string
-        *endpoints.entry(e.path.as_str()).or_insert(0) += 1;
-    }
+// defines a function that prints summary stats from collected log data
+fn report(stats: &Stats, skipped: usize, top: usize) {
+    // adds up the counts of 4xx and 5xx error responses, defaulting to 0 if none exist
+    let errors = stats.classes.get(&4).unwrap_or(&0) + stats.classes.get(&5).unwrap_or(&0);
+    // prints the total number of processed requests
+    println!("Total: {}", stats.total);
+    // prints how many malformed or unparseable lines were skipped
+    println!("Skipped Lines: {skipped}");
+    // calculates and prints the error percentage formatted to one decimal place
+    println!("Error Rate: {:.1}%", errors as f64 / stats.total as f64 * 100.0);
 
-    // client and server errors count as errors
-    // looks up how many 4 & 5 were tailed, if 0 uses 0 instead of crashing
-    let errors = classes.get(&4).unwrap_or(&0) + classes.get(&5).unwrap_or(&0);
-    println!("Total: {total}");
-    println!("Error rate: {:.1}%", errors as f64 / total as f64 * 100.0);
-
-    // sorting status classes smallest to largest
-    let mut class_list: Vec<_> = classes.into_iter().collect();
-    class_list.sort();
-    for (class, count) in class_list  {
+    // collects status code classes (e.g., 2, 4, 5) and their counts into a vector
+    let mut classes: Vec<_> = stats.classes.iter().collect();
+    // sorts the status code classes in ascending numerical order
+    classes.sort();
+    // loops through each sorted status class and its count
+    for (class, count) in classes {
+        // prints the status class (like "2xx") alongside its total count
         println!("{class}xx: {count}");
     }
 
-    // sorting top URLs biggest to smallest
-    let mut top_paths: Vec<_> = endpoints.into_iter().collect();
-    top_paths.sort_by(|a, b| b.1.cmp(&a.1));
-    println!("Top endpoints: ");
-    for (path, count) in top_paths.iter().take(top) { // grabs only the top results
-        println!("{count:>6} {path}"); // padding number 6
+    // collects hourly request entries into a vector
+    let mut hours: Vec<_> = stats.hours.iter().collect();
+    // sorts the hours in chronological order (00 to 23)
+    hours.sort();
+    // prints a section header for the hourly breakdown
+    println!("Requests Per Hour:");
+    // loops through each sorted hour and its request count
+    for (hour, count) in hours {
+        // prints the hour padded to two digits (e.g., "09:00") and its request count
+        println!("{hour:02}:00  {count}");
     }
 
-    // sorting by byte size, largest to smallest
-    let mut largest: Vec<&Entry> = entries.iter().collect();
-    largest.sort_by(|a, b| b.bytes.cmp(&a.bytes));
-    println!("Largest response: ");
-    for e in largest.iter().take(top) {
-        println!("{:>8} bytes {} {}", e.bytes, e.method, e.path);
+    // collects endpoint paths and their request counts into a vector
+    let mut paths: Vec<_> = stats.endpoints.iter().collect();
+    // sorts the endpoints by count in descending order (highest traffic first)
+    paths.sort_by(|a, b| b.1.cmp(a.1));
+    // prints a section header for the most requested endpoints
+    println!("Top Endpoints:");
+    // loops through only the top N endpoints specified by the `top` parameter
+    for (path, count) in paths.iter().take(top) {
+        // prints the request count right-aligned to 6 characters followed by the path
+        println!("{count:>6}  {path}");
+    }
+
+    // prints a section header for the largest recorded responses
+    println!("Largest Responses:");
+    // loops through each entry in the list of largest responses
+    for e in &stats.largest {
+        // prints the response size right-aligned to 8 characters, followed by the HTTP method and path
+        println!("{:>8} bytes  {} {}", e.bytes, e.method, e.path);
     }
 }
+
 
 // true when the entry passes every filter flag
 // evaluation stops at the first false

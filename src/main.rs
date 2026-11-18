@@ -24,9 +24,6 @@ struct Args {
     // keeps entries at or before this time
     #[arg(long, value_parser = DateTime::parse_from_rfc3339)]
     to: Option<DateTime<FixedOffset>>,
-
-    // stores the moment of request 
-    time: DateTime<FixedOffset>,
 }
 
 // one parsed log line

@@ -35,6 +35,7 @@ struct Entry {
     path: String,
     status: u16,
     bytes: u64,
+    time: DateTime<FixedOffset>,
 }
 
 // drops control characters so log text cannot change what the terminal shows

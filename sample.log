@@ -8,3 +8,5 @@
 10.0.0.3 - - [17/Nov/2026:10:00:08 +0600] "GET /index.html HTTP/1.1" 304 0
 broken line here
 10.0.0.6 - - [17/Nov/2026:10:00:09 +0600] "DELETE /api/posts/7 HTTP/1.1" 204 0
+10.0.0.7 - - [17/Nov/2026:11:15:30 +0600] "GET /api/users HTTP/1.1" 200 530
+10.0.0.8 - - [17/Nov/2026:12:40:12 +0600] "GET /api/posts HTTP/1.1" 500 99

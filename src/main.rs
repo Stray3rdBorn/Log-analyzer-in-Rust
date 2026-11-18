@@ -1,6 +1,8 @@
 use clap::Parser;
 use std::collections::HashMap;
-use std::fs;
+use chrono::{DateTime, FixedOffset};
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 
 //command line arguments
 #[derive(Parser)]
@@ -16,6 +18,15 @@ struct Args {
     // number of rows in each top list
     #[arg(long, default_value_t = 5)]
     top: usize,
+    // keeps entries at or after this time, RFC 3339 like 2026-11-17T10:00:00+06:00
+    #[arg(long, value_parser = DateTime::parse_from_rfc3339)]
+    from: Option<DateTime<FixedOffset>>,
+    // keeps entries at or before this time
+    #[arg(long, value_parser = DateTime::parse_from_rfc3339)]
+    to: Option<DateTime<FixedOffset>>,
+
+    // stores the moment of request 
+    time: DateTime<FixedOffset>,
 }
 
 // one parsed log line
@@ -26,6 +37,15 @@ struct Entry {
     bytes: u64,
 }
 
+// drops control characters so log text cannot change what the terminal shows
+fn clean(text: &str) -> String {
+    text.chars().filter(|c| !c.is_control()).collect()
+    // chars one character at a time
+    // filter keeps only characters when return is true
+    // c.is-control so only non control characters stay
+    // collect packs all charas into a string
+}
+
 // turns on raw line into an entry, none if the line is empty
 fn parse_line(line: &str) -> Option<Entry> {
     // split at every "
@@ -34,6 +54,8 @@ fn parse_line(line: &str) -> Option<Entry> {
     if parts.len() < 3 {
         return None;
     }
+    // holds timestamp
+     let stamp = parts[0].split('[').nth(1)?.split(']').next()?;
     // holds the web request like method, path/URL
     let mut request =  parts[1].split_whitespace();
     // holds the server's resposne numbers like status code, byte size
@@ -44,12 +66,44 @@ fn parse_line(line: &str) -> Option<Entry> {
         // to_string makes a permanent copy of the word so Entry box can own it
         // parse turns text into numbers, ok converts any error into a none
         // unwrap(0) means unknown byte size is read as 0 so it doesn't stop 
-        method: request.next()?.to_string(),
-        path: request.next()?.to_string(),
+        method: clean(request.next()?), // replaces to_string to copy text into string and remove control charas
+        path: clean(request.next()?),
         status: tail.next()?.parse().ok()?,
         bytes: tail.next()?.parse().unwrap_or(0),
+        // reads a date from text using a pattern
+        time: DateTime::parse_from_str(stamp, "%d/%b/%Y:%H:%M:%S %z").ok()?,
     })
 }
+
+// running totals filled while lines are read
+#[derive(Default)] // auto writes Stats::default(), which gives zero and empty collections
+struct Stats { // holds the counters 
+    total: usize,
+    classes: HashMap<u16, usize>,
+    endpoints: HashMap<String, usize>,
+    hours: HashMap<u32, usize>,
+    largest: Vec<Entry>,
+}
+
+impl Stats { // attaches functions to the type
+    // folds one entry into the running totals
+    // the method receives the Stats it was called on and may change it
+    fn add(&mut self, e: Entry, top: usize) {
+        self.total += 1;
+        // path clone makes a separate copy of the text
+        // time hour gives the hour from 0 to 23
+        *self.classes.entry(e.status / 100).or_insert(0) += 1;
+        *self.endpoints.entry(e.path.clone()).or_insert(0) += 1;
+        *self.hours.entry(e.time.hour()).or_insert(0) += 1;
+        // appends the entry to the list
+        self.largest.push(e);
+        // largest bytes
+        self.largest.sort_by(|a, b| b.bytes.cmp(&a.bytes));
+        // cuts the list down to first top items
+        self.largest.truncate(top);
+    }
+}
+
 // prints every stats for the filtered entries
 fn report(entries: &[Entry], top: usize) { // read-only window into the list of log entries
     // count number of valid log entries

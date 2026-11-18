@@ -149,6 +149,16 @@ fn report(entries: &[Entry], top: usize) { // read-only window into the list of 
     }
 }
 
+// true when the entry passes every filter flag
+// evaluation stops at the first false
+// the last expression has no ; so its the return value
+fn passes(e: &Entry, args: &Args) -> bool {
+    args.status.is_none_or(|s| e.status / 100 == s)
+        && args.method.as_ref().is_none_or(|m| e.method.eq_ignore_ascii_case(m))
+        && args.from.is_none_or(|f| e.time >= f)
+        && args.to.is_none_or(|t| e.time <= t)
+}
+
 fn main() -> Result<(), std::io::Error> {
     let args = Args::parse(); // reads commands in terminal 
     let text = fs::read_to_string(&args.file)?; // puts all texts into one string

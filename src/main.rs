@@ -156,26 +156,31 @@ fn passes(e: &Entry, args: &Args) -> bool {
 }
 
 fn main() -> Result<(), std::io::Error> {
-    let args = Args::parse(); // reads commands in terminal 
-    let text = fs::read_to_string(&args.file)?; // puts all texts into one string
-
-    let entries: Vec<Entry> = text
-        .lines() // splits string into individual lines
-        .filter_map(parse_line) // feeds raw lines to parse_line
-        .filter(|e| args.status.is_none_or(|s| e.status / 100 == s)) // checks valind entry
-        .filter(|e| {
-            args.method
-                .as_ref() // looks at method text
-                .is_none_or(|m| e.method.eq_ignore_ascii_case(m)) // ignores letter case
-        })
-        .collect(); // pulls every entry into a final list
-    
-    // to prevent a divide by 0 crash later if it returns ok
-    if entries.is_empty() {
-        println!("no matching entries");
+    let args = Args::parse();
+    // opens the file, it fails with an error if the file is missing.
+    // bufreader wraps the file so its read fully and its never in memory
+    let reader = BufReader::new(File::open(&args.file)?);
+    // creates the empty tally sheet
+    let mut stats = Stats::default();
+    // counts lines that failed to parse
+    let mut skipped = 0;
+    // gives one line per loop, each is a result because reading can fail midway
+    for line in reader.lines() {
+        // unwraps the result & lends text to parse_line & checks the result against patterns
+        match parse_line(&line?) {
+            // matches a parse entry only when the guard after if is true
+            Some(e) if passes(&e, &args) => stats.add(e, args.top),
+            // an entry that failed the filters, _ means ignore, {} means do nothing
+            Some(_) => {}
+            // line that failed to parse
+            None => skipped += 1,
+        }
+    }
+    // entries are not listed anymore to handle huge files without running out of memory
+    if stats.total == 0 {
+        println!("no matching entries, skipped lines: {skipped}");
         return Ok(());
     }
-    // puts filtered list to report for printing
-    report(&entries, args.top);
+    report(&stats, skipped, args.top);
     Ok(())
 }
